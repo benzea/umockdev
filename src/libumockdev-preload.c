@@ -433,6 +433,7 @@ static fd_map ioctl_wrapped_fds;
 struct ioctl_fd_info {
     char *dev_path;
     int ioctl_sock;
+    int is_default;
 };
 
 static void
@@ -440,6 +441,7 @@ ioctl_emulate_open(int fd, const char *dev_path, int must_exist)
 {
     libc_func(socket, int, int, int, int);
     libc_func(connect, int, int, const struct sockaddr *, socklen_t);
+    int is_default = 0;
     int sock;
     int ret;
     struct ioctl_fd_info *fdinfo;
@@ -451,8 +453,10 @@ ioctl_emulate_open(int fd, const char *dev_path, int must_exist)
     addr.sun_family = AF_UNIX;
     snprintf(addr.sun_path, sizeof(addr.sun_path), "%s/ioctl/%s", getenv("UMOCKDEV_DIR"), dev_path);
 
-    if (path_exists (addr.sun_path) != 0)
+    if (path_exists (addr.sun_path) != 0) {
 	snprintf(addr.sun_path, sizeof(addr.sun_path), "%s/ioctl/_default", getenv("UMOCKDEV_DIR"));
+	is_default = 1;
+    }
 
     sock = _socket(AF_UNIX, SOCK_STREAM, 0);
     if (sock == -1) {
@@ -479,6 +483,7 @@ ioctl_emulate_open(int fd, const char *dev_path, int must_exist)
     fdinfo = malloc(sizeof(struct ioctl_fd_info));
     fdinfo->ioctl_sock = sock;
     fdinfo->dev_path = strdup(dev_path);
+    fdinfo->is_default = is_default;
 
     fd_map_add(&ioctl_wrapped_fds, fd, fdinfo);
     DBG(DBG_IOCTL, "ioctl_emulate_open fd %i (%s): connected ioctl sockert\n", fd, dev_path);
@@ -502,6 +507,8 @@ ioctl_emulate_close(int fd)
 
 #define IOCTL_REQ_IOCTL 1
 #define IOCTL_REQ_RES 2
+#define IOCTL_REQ_READ 7
+#define IOCTL_REQ_WRITE 8
 #define IOCTL_RES_DONE 3
 #define IOCTL_RES_RUN 4
 #define IOCTL_RES_READ_MEM 5
@@ -516,11 +523,13 @@ struct ioctl_request {
 };
 
 static int
-ioctl_emulate(int fd, IOCTL_REQUEST_TYPE request, void *arg)
+remote_emulate(int fd, int cmd, long arg1, long arg2)
 {
     libc_func(send, ssize_t, int, const void *, size_t, int);
     libc_func(recv, ssize_t, int, const void *, size_t, int);
     libc_func(ioctl, int, int, IOCTL_REQUEST_TYPE, ...);
+    libc_func(read, ssize_t, int, void *, size_t);
+    libc_func(write, ssize_t, int, void *, size_t);
     struct ioctl_fd_info *fdinfo;
     struct ioctl_request req;
     int res;
@@ -531,12 +540,17 @@ ioctl_emulate(int fd, IOCTL_REQUEST_TYPE request, void *arg)
 	IOCTL_UNLOCK;
 	return UNHANDLED;
     }
+    IOCTL_UNLOCK;
+
+    /* Only pass on ioctl requests for the default handler. */
+    if (fdinfo->is_default && cmd != IOCTL_REQ_IOCTL)
+	return UNHANDLED;
 
     /* We force "unsigned int" here to prevent sign extension to long
      * which could confuse the receiving side. */
-    req.cmd = IOCTL_REQ_IOCTL;
-    req.arg1 = (unsigned int) request;
-    req.arg2 = (long) arg;
+    req.cmd = cmd;
+    req.arg1 = (unsigned int) arg1;
+    req.arg2 = (long) arg2;
 
     do {
         res = _send(fdinfo->ioctl_sock, &req, sizeof(req), 0);
@@ -557,11 +571,18 @@ ioctl_emulate(int fd, IOCTL_REQUEST_TYPE request, void *arg)
 	    case IOCTL_RES_DONE:
 		errno = req.arg2;
 
-		IOCTL_UNLOCK;
 		return req.arg1;
 
 	    case IOCTL_RES_RUN:
-		res = _ioctl(fd, request, arg);
+		if (cmd == IOCTL_REQ_IOCTL)
+		    res = _ioctl(fd, arg1, arg2);
+		else if (cmd == IOCTL_REQ_READ)
+		    res = _read(fd, (char*) arg1, arg2);
+		else if (cmd == IOCTL_REQ_WRITE)
+		    res = _write(fd, (char*) arg1, arg2);
+		else
+		    goto con_err;
+
 		req.cmd = IOCTL_REQ_RES;
 		req.arg1 = res;
 		req.arg2 = errno;
@@ -1419,6 +1440,11 @@ read(int fd, void *buf, size_t count)
     libc_func(read, ssize_t, int, void *, size_t);
     ssize_t res;
 
+    res = remote_emulate(fd, IOCTL_REQ_READ, (long) buf, (long) count);
+    if (res != UNHANDLED) {
+	DBG(DBG_IOCTL, "ioctl fd %i read of %d bytes: emulated, result %i\n", fd, (int) count, (int) res);
+	return res;
+    }
     res = _read(fd, buf, count);
     script_record_op('r', fd, buf, res);
     return res;
@@ -1430,6 +1456,11 @@ write(int fd, const void *buf, size_t count)
     libc_func(write, ssize_t, int, const void *, size_t);
     ssize_t res;
 
+    res = remote_emulate(fd, IOCTL_REQ_WRITE, (long) buf, (long) count);
+    if (res != UNHANDLED) {
+	DBG(DBG_IOCTL, "ioctl fd %i write of %d bytes: emulated, result %i\n", fd, (int) count, (int) res);
+	return res;
+    }
     res = _write(fd, buf, count);
     script_record_op('w', fd, buf, res);
     return res;
@@ -1603,7 +1634,7 @@ ioctl(int d, IOCTL_REQUEST_TYPE request, ...)
     arg = va_arg(ap, void*);
     va_end(ap);
 
-    result = ioctl_emulate(d, request, arg);
+    result = remote_emulate(d, IOCTL_REQ_IOCTL, request, (long) arg);
     if (result != UNHANDLED) {
 	DBG(DBG_IOCTL, "ioctl fd %i request %X: emulated, result %i\n", d, (unsigned) request, result);
 	return result;
