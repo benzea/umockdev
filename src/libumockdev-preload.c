@@ -532,8 +532,8 @@ ioctl_emulate(int fd, IOCTL_REQUEST_TYPE request, void *arg)
     }
 
     req.cmd = IOCTL_REQ_IOCTL;
-    req.arg1 = (long) request;
-    req.arg2 = (long) arg;
+    req.arg1 = (unsigned long) request;
+    req.arg2 = (unsigned long) arg;
 
     do {
         res = _send(fdinfo->ioctl_sock, &req, sizeof(req), 0);
