@@ -532,7 +532,7 @@ ioctl_emulate(int fd, IOCTL_REQUEST_TYPE request, void *arg)
     }
 
     req.cmd = IOCTL_REQ_IOCTL;
-    req.arg1 = (unsigned long) request;
+    req.arg1 = (unsigned int) request;
     req.arg2 = (unsigned long) arg;
 
     do {
