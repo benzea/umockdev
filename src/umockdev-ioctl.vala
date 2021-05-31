@@ -413,6 +413,8 @@ public class IoctlClient : GLib.Object {
 
         assert(args[0] == 1);
 
+	message("got ioctl request %lx %lx %lx", args[0], args[1], args[2]);
+
         _request = args[1];
         _arg = new IoctlData(stream);
         _arg.data = new uint8[sizeof(ulong)];
@@ -559,6 +561,8 @@ public class IoctlBase: GLib.Object {
         lock (listeners)
           cancellable = listeners[devnode];
 
+	message("listening socket");
+
         try {
             while (true) {
                 SocketConnection connection;
@@ -567,6 +571,8 @@ public class IoctlBase: GLib.Object {
                 connection = yield listener.accept_async(cancellable);
 
                 client = new IoctlClient(this, connection, devnode);
+
+	message("created new client");
 
                 client_connected(client);
                 client.read_ioctl.begin();
@@ -645,6 +651,8 @@ internal class IoctlTreeHandler : IoctlBase {
     {
         base (ctx);
 
+message("Instantiating tree handler");
+
         Posix.FILE f = Posix.FILE.open(file, "r");
         tree = new IoctlTree.Tree(f);
     }
@@ -705,10 +713,12 @@ internal class IoctlTreeHandler : IoctlBase {
         }
 
         if (request == Ioctl.USBDEVFS_SUBMITURB && ret == 0) {
+            message("Setting submiturb");
             last_submit_urb = data;
         }
 
         if ((request == Ioctl.USBDEVFS_REAPURB || request == Ioctl.USBDEVFS_REAPURBNDELAY) && last_submit_urb != null) {
+            message("Handling reapurb pointer");
             /* Parameter points to a pointer, check whether that is a pointer
              * to our last submit urb. If so, update it so the client sees
              * the right information.
@@ -716,6 +726,8 @@ internal class IoctlTreeHandler : IoctlBase {
              * just always check.
              */
             if (*(void**) data.data == (void*) last_submit_urb.data) {
+                message("Pointer matches");
+
                 try {
                     data.set_ptr(0, last_submit_urb);
                 } catch (IOError e) {

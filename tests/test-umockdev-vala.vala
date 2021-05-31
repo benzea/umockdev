@@ -268,11 +268,13 @@ USBDEVFS_CONNECTINFO 42 0000000C01000000
 
   // static ioctl
   assert_cmpint (Posix.ioctl (fd, Ioctl.USBDEVFS_CLAIMINTERFACE, ref i), CompareOperator.EQ, 0);
+  stderr.printf("claim interface: %p\n", &i);
   assert_cmpint (Posix.errno, CompareOperator.EQ, 0);
 
   // loaded ioctl
   var ci = Ioctl.usbdevfs_connectinfo();
   assert_cmpint (Posix.ioctl (fd, Ioctl.USBDEVFS_CONNECTINFO, ref ci), CompareOperator.EQ, 0);
+  stderr.printf("connect info: %p\n", &ci);
   assert_cmpint (Posix.errno, CompareOperator.EQ, 0);
   assert_cmpuint (ci.devnum, CompareOperator.EQ, 11);
   assert_cmpuint (ci.slow, CompareOperator.EQ, 0);
@@ -281,6 +283,7 @@ USBDEVFS_CONNECTINFO 42 0000000C01000000
   var urb_buffer = new uint8[4];
   Ioctl.usbdevfs_urb urb = {1, 129, 0, 0, urb_buffer, 4, 0};
   assert_cmpint (Posix.ioctl (fd, Ioctl.USBDEVFS_SUBMITURB, ref urb), CompareOperator.EQ, 0);
+  stderr.printf("submit_urb: %p\n", &urb);
   assert_cmpint (Posix.errno, CompareOperator.EQ, 0);
   assert_cmpuint (urb.status, CompareOperator.EQ, 0);
   assert_cmpint (urb_buffer[0], CompareOperator.EQ, 0);
@@ -288,6 +291,7 @@ USBDEVFS_CONNECTINFO 42 0000000C01000000
   Ioctl.usbdevfs_urb* urb_reap = null;
   assert_cmpint (Posix.ioctl (fd, Ioctl.USBDEVFS_REAPURB, ref urb_reap), CompareOperator.EQ, 0);
   assert_cmpint (Posix.errno, CompareOperator.EQ, 0);
+  stderr.printf("urb_reap, urb: %p, %p\n", urb_reap, &urb);
   assert (urb_reap == &urb);
   assert_cmpint (urb.status, CompareOperator.EQ, -1);
   assert_cmpuint (urb.buffer[0], CompareOperator.EQ, 0x99);
