@@ -838,7 +838,7 @@ t_testbed_uevent_action_overflow(UMockdevTestbedFixture * fixture, gconstpointer
     }
     g_debug("waiting for subprocess");
     g_setenv("G_MESSAGES_DEBUG", "all", TRUE);
-    g_test_trap_subprocess(NULL, 10000000, G_TEST_SUBPROCESS_INHERIT_STDOUT);
+    g_test_trap_subprocess(NULL, 25000000, G_TEST_SUBPROCESS_INHERIT_STDOUT);
     g_debug("done wait");
     g_test_trap_assert_failed();
     g_test_trap_assert_stderr ("*uevent_sender_send*Property buffer overflow*");

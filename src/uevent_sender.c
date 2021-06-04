@@ -227,14 +227,19 @@ uevent_sender_send(uevent_sender * sender, const char *devpath, const char *acti
     struct udev_monitor_netlink_header nlh;
     static unsigned long long seqnum = 1;
 
+    fprintf(stdout, "udev_device_new_from_syspath\n");
     device = udev_device_new_from_syspath(sender->udev, devpath);
     if (device == NULL) {
+        fprintf(stdout, "udev_device_new_from_syspath failed\n");
 	fprintf(stderr, "ERROR: uevent_sender_send: No such device %s\n", devpath);
 	return;
     }
+    fprintf(stdout, "udev_device_new_from_syspath done\n");
 
     subsystem = udev_device_get_subsystem(device);
     assert(subsystem != NULL);
+
+        fprintf(stdout, "subsystem %s\n", subsystem);
 
     devname = udev_device_get_devnode(device);
     devtype = udev_device_get_devtype(device);
