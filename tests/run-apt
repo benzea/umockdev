@@ -41,7 +41,7 @@ else
     DESTDIR=/tmp/inst meson install
 fi
 meson test -v --no-stdsplit --num-processes=1
-meson test -v --no-stdsplit --num-processes=1 --setup valgrind --no-suite fails-valgrind
+meson test -v --no-stdsplit --num-processes=1 -t 2 --setup valgrind --no-suite fails-valgrind
 EOG
 
 # install and run check-installed; make sure there is nothing on stderr (for Debian/Ubuntu autopkgtests)
