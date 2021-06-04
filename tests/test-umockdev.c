@@ -58,15 +58,21 @@ typedef struct {
 static void
 t_testbed_fixture_setup(UMockdevTestbedFixture * fixture, gconstpointer data)
 {
+    g_debug ("creating fixture");
     fixture->testbed = umockdev_testbed_new();
+    g_debug ("created fixture");
+
     g_assert(fixture->testbed != NULL);
     fixture->root_dir = umockdev_testbed_get_root_dir(fixture->testbed);
     fixture->sys_dir = umockdev_testbed_get_sys_dir(fixture->testbed);
+    g_debug ("blub");
 }
 
 static void
 t_testbed_fixture_teardown(UMockdevTestbedFixture * fixture, gconstpointer data)
 {
+    g_debug ("tearing down fixture");
+
     g_object_unref(fixture->testbed);
 
     /* verify that temp dir gets cleaned up properly */
@@ -812,19 +818,31 @@ t_testbed_uevent_null_action(UMockdevTestbedFixture * fixture, gconstpointer dat
 static void
 t_testbed_uevent_action_overflow(UMockdevTestbedFixture * fixture, gconstpointer data)
 {
+    g_debug ("action_overflow start");
     g_autofree gchar *syspath = umockdev_testbed_add_device(fixture->testbed, "pci", "mydev", NULL, NULL, NULL);
     g_assert(syspath);
+    g_debug("action_overflow");
 
     /* overly long action */
     if (g_test_subprocess()) {
+       g_debug("subprocess running");
+
         char long_action[4096];
         memset(long_action, 'a', sizeof(long_action));
         long_action[sizeof(long_action)-1] = '\0';
+
+       g_debug("subprocess sending long action");
         umockdev_testbed_uevent(fixture->testbed, syspath, long_action);
+       g_debug("subprocess done (should not happen)");
+       exit(0);
     }
-    g_test_trap_subprocess(NULL, 0, 0);
+    g_debug("waiting for subprocess");
+    g_setenv("G_MESSAGES_DEBUG", "all", TRUE);
+    g_test_trap_subprocess(NULL, 10000000, G_TEST_SUBPROCESS_INHERIT_STDOUT);
+    g_debug("done wait");
     g_test_trap_assert_failed();
     g_test_trap_assert_stderr ("*uevent_sender_send*Property buffer overflow*");
+    g_debug("test success");
 }
 
 static void
@@ -2142,6 +2160,8 @@ main(int argc, char **argv)
 {
     const gchar *f = g_getenv("SLOW_TESTBED_FACTOR");
 
+    g_debug ("test process started");
+
     if (f != NULL && atoi(f) > 0)
             slow_testbed_factor = atoi(f);
 
@@ -2149,9 +2169,12 @@ main(int argc, char **argv)
     g_type_init();
 #endif
     g_test_init(&argc, &argv, NULL);
+    g_debug ("tests initialised");
 
     /* do we have a real /sys on this test? */
     has_real_sysfs = g_file_test("/sys/devices", G_FILE_TEST_IS_DIR);
+
+    g_debug ("real sysfs: %d", has_real_sysfs);
 
     /* tests for mocking /sys */
     g_test_add("/umockdev-testbed/empty", UMockdevTestbedFixture, NULL, t_testbed_fixture_setup,
