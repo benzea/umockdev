@@ -58,10 +58,12 @@ typedef struct {
 static void
 t_testbed_fixture_setup(UMockdevTestbedFixture * fixture, gconstpointer data)
 {
+    g_message ("creating testbed!");
     fixture->testbed = umockdev_testbed_new();
     g_assert(fixture->testbed != NULL);
     fixture->root_dir = umockdev_testbed_get_root_dir(fixture->testbed);
     fixture->sys_dir = umockdev_testbed_get_sys_dir(fixture->testbed);
+    g_message ("testbed created!");
 }
 
 static void
@@ -812,6 +814,8 @@ t_testbed_uevent_null_action(UMockdevTestbedFixture * fixture, gconstpointer dat
 static void
 t_testbed_uevent_action_overflow(UMockdevTestbedFixture * fixture, gconstpointer data)
 {
+    g_message ("action overflow main func!");
+
     g_autofree gchar *syspath = umockdev_testbed_add_device(fixture->testbed, "pci", "mydev", NULL, NULL, NULL);
     g_assert(syspath);
 
@@ -2146,6 +2150,8 @@ main(int argc, char **argv)
 {
     const gchar *f = g_getenv("SLOW_TESTBED_FACTOR");
 
+    g_message ("Hello from test!");
+
     if (f != NULL && atoi(f) > 0)
             slow_testbed_factor = atoi(f);
 
@@ -2241,5 +2247,8 @@ main(int argc, char **argv)
 	       t_testbed_remove, t_testbed_fixture_teardown);
     g_test_add("/umockdev-testbed/proc", UMockdevTestbedFixture, NULL, t_testbed_fixture_setup,
 	       t_testbed_proc, t_testbed_fixture_teardown);
+
+    g_message ("running test!");
+
     return g_test_run();
 }
