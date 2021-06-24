@@ -736,13 +736,21 @@ public class Testbed: GLib.Object {
      */
     public void uevent (string devpath, string action)
     {
+        if (Environment.get_variable("BLUBBER") != null) {
+            message("sending action");
+            message("action is: %s", action);
+        }
         if (this.ev_sender == null) {
+            if (Environment.get_variable("BLUBBER") != null)
+                message("lazy init uevent_sender");
             debug("umockdev_testbed_uevent: lazily initializing uevent_sender");
             this.ev_sender = new UeventSender.sender(this.root_dir);
             assert(this.ev_sender != null);
         }
         debug("umockdev_testbed_uevent: sending uevent %s for device %s", action, devpath);
         this.ev_sender.send(devpath, action);
+        if (Environment.get_variable("BLUBBER") != null)
+            message("action was send");
     }
 
     /**
