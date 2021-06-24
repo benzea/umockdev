@@ -855,6 +855,86 @@ t_mt_uevent ()
   assert_cmpuint (change_count, CompareOperator.EQ, num_changes);
 }
 
+static bool
+ioctl_custom_handle_ioctl_cb(UMockdev.IoctlBase handler, UMockdev.IoctlClient client)
+{
+    if (client.request == 1) {
+      client.complete(*(long*)client.arg.data, 0);
+    } else if (client.request == 2) {
+      client.complete(-1, Posix.ENOMEM);
+    } else {
+      client.complete(-5, 1);
+    }
+    return true;
+}
+
+static bool
+ioctl_custom_handle_write_cb(UMockdev.IoctlBase handler, UMockdev.IoctlClient client)
+{
+    client.set_data("written", client.arg);
+    client.complete(client.arg.data.length, 0);
+    return true;
+}
+
+static bool
+ioctl_custom_handle_read_cb(UMockdev.IoctlBase handler, UMockdev.IoctlClient client)
+{
+    UMockdev.IoctlData written = client.get_data("written");
+
+    assert(written != null);
+    assert(written.data.length == client.arg.data.length);
+
+    Posix.memcpy(client.arg.data, written.data, client.arg.data.length);
+    client.arg.dirty(false);
+
+    client.complete(client.arg.data.length, 0);
+
+    return true;
+}
+
+void
+t_ioctl_custom()
+{
+  var tb = new UMockdev.Testbed ();
+
+  tb_add_from_string (tb, """P: /devices/test
+N: test
+E: SUBSYSTEM=test
+""");
+
+  var handler = new UMockdev.IoctlBase(tb.worker_ctx);
+  var write_buf = new uint8[10] { 1, 2, 3, 4 ,5 ,6 ,7 ,8, 9, 10 };
+  var read_buf = new uint8[10] { 0 };
+
+  /* These are not native vala signals because of the accumulator. */
+  handler.connect("signal::handle-ioctl", ioctl_custom_handle_ioctl_cb, null);
+  handler.connect("signal::handle-read", ioctl_custom_handle_read_cb, null);
+  handler.connect("signal::handle-write", ioctl_custom_handle_write_cb, null);
+
+  tb.attach_ioctl("/dev/test", handler);
+
+  int fd = Posix.open ("/dev/test", Posix.O_RDWR, 0);
+  assert_cmpint (fd, CompareOperator.GE, 0);
+
+  assert_cmpint (Posix.ioctl (fd, 1, 0xdeadbeef), CompareOperator.EQ, (int) 0xdeadbeef);
+  assert_cmpint (Posix.errno, CompareOperator.EQ, 0);
+
+  assert_cmpint (Posix.ioctl (fd, 2, 0xdeadbeef), CompareOperator.EQ, -1);
+  assert_cmpint (Posix.errno, CompareOperator.EQ, Posix.ENOMEM);
+
+  /* Test whether we can write and get the value mirrored back. */
+  assert_cmpint ((int) Posix.write (fd, write_buf, 10), CompareOperator.EQ, 10);
+  assert_cmpint (Posix.errno, CompareOperator.EQ, 0);
+
+  assert_cmpint ((int) Posix.read (fd, read_buf, 10), CompareOperator.EQ, 10);
+  assert_cmpint (Posix.errno, CompareOperator.EQ, 0);
+  assert_cmpint (Posix.memcmp (read_buf, write_buf, 10), CompareOperator.EQ, 0);
+
+
+  Posix.close(fd);
+
+  tb.detach_ioctl("/dev/test", handler);
+}
 
 int
 main (string[] args)
@@ -898,6 +978,9 @@ main (string[] args)
   /* tests for multi-thread safety */
   Test.add_func ("/umockdev-testbed-vala/mt_parallel_attr_distinct", t_mt_parallel_attr_distinct);
   Test.add_func ("/umockdev-testbed-vala/mt_uevent", t_mt_uevent);
+
+  /* test IoctlBase attachment and signals */
+  Test.add_func ("/umockdev-testbed-vala/ioctl_custom", t_ioctl_custom);
 
   return Test.run();
 }
