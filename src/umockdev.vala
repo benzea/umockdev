@@ -90,12 +90,12 @@ public class Testbed: GLib.Object {
         this.dev_fd = new HashTable<string, int> (str_hash, str_equal);
         this.dev_script_runner = new HashTable<string, ScriptRunner> (str_hash, str_equal);
 
-        this.worker_ctx = new MainContext();
-        this.worker_loop = new MainLoop(this.worker_ctx);
+        this._worker_ctx = new MainContext();
+        this.worker_loop = new MainLoop(this._worker_ctx);
         this.worker_thread = create_worker_thread(this.worker_loop);
 
         /* Create fallback ioctl handler */
-        IoctlBase handler = new IoctlBase(this.worker_ctx);
+        IoctlBase handler = new IoctlBase(this._worker_ctx);
         string sockpath = Path.build_filename(this.root_dir, "ioctl", "_default");
         handler.register_path("_default", sockpath);
 
@@ -819,9 +819,9 @@ public class Testbed: GLib.Object {
 
         IoctlBase handler;
         if (format == "SPI")
-            handler = new IoctlSpiHandler(worker_ctx, dest);
+            handler = new IoctlSpiHandler(_worker_ctx, dest);
         else
-            handler = new IoctlTreeHandler(worker_ctx, dest);
+            handler = new IoctlTreeHandler(_worker_ctx, dest);
 
         string sockpath = Path.build_filename(this.root_dir, "ioctl", owned_dev);
         handler.register_path(owned_dev, sockpath);
@@ -860,7 +860,7 @@ public class Testbed: GLib.Object {
 
         assert(DirUtils.create_with_parents(Path.get_dirname(sockpath), 0755) == 0);
 
-        IoctlUsbPcapHandler handler = new IoctlUsbPcapHandler(worker_ctx, recordfile, busnum, devnum);
+        IoctlUsbPcapHandler handler = new IoctlUsbPcapHandler(_worker_ctx, recordfile, busnum, devnum);
         handler.register_path(owned_dev, sockpath);
 
         return true;
@@ -1480,6 +1480,8 @@ public class Testbed: GLib.Object {
             return -1;
     }
 
+    public MainContext worker_ctx { get; }
+
     private string root_dir;
     private string sys_dir;
     private Regex re_record_val;
@@ -1491,7 +1493,6 @@ public class Testbed: GLib.Object {
     private SocketServer socket_server = null;
 
     private Thread<void> worker_thread;
-    private MainContext worker_ctx;
     private MainLoop worker_loop;
 }
 
