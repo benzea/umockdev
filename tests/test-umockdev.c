@@ -69,7 +69,9 @@ t_testbed_fixture_setup(UMockdevTestbedFixture * fixture, gconstpointer data)
 static void
 t_testbed_fixture_teardown(UMockdevTestbedFixture * fixture, gconstpointer data)
 {
+    g_message ("destroying testbed!");
     g_object_unref(fixture->testbed);
+    g_message ("testbed destroyed!");
 
     /* verify that temp dir gets cleaned up properly */
     g_assert(!g_file_test(fixture->root_dir, G_FILE_TEST_EXISTS));
