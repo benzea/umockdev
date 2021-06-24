@@ -535,19 +535,28 @@ remote_emulate(int fd, int cmd, long arg1, long arg2)
     libc_func(write, ssize_t, int, void *, size_t);
     struct ioctl_fd_info *fdinfo;
     struct ioctl_request req;
+    sigset_t sig_set, sig_restore;
     int res;
+
+    /* Block all signals while we are talking with the remote process. */
+    sigfillset(&sig_set);
+    pthread_sigmask(SIG_SETMASK, &sig_set, &sig_restore);
 
     IOCTL_LOCK;
 
     if (!fd_map_get(&ioctl_wrapped_fds, fd, (const void **)&fdinfo)) {
 	IOCTL_UNLOCK;
+
+	pthread_sigmask(SIG_SETMASK, &sig_restore, NULL);
 	return UNHANDLED;
     }
     IOCTL_UNLOCK;
 
     /* Only pass on ioctl requests for the default handler. */
-    if (fdinfo->is_default && cmd != IOCTL_REQ_IOCTL)
+    if (fdinfo->is_default && cmd != IOCTL_REQ_IOCTL) {
+	pthread_sigmask(SIG_SETMASK, &sig_restore, NULL);
 	return UNHANDLED;
+    }
 
     pthread_mutex_lock (&fdinfo->sock_lock);
 
@@ -577,6 +586,7 @@ remote_emulate(int fd, int cmd, long arg1, long arg2)
 		errno = req.arg2;
 
 		pthread_mutex_unlock (&fdinfo->sock_lock);
+		pthread_sigmask(SIG_SETMASK, &sig_restore, NULL);
 		/* Force a context switch so that other threads can take the lock */
 		usleep(0);
 		return req.arg1;
@@ -652,11 +662,13 @@ remote_emulate(int fd, int cmd, long arg1, long arg2)
 
 con_eof:
     fprintf(stderr, "ERROR: libumockdev-preload: Error communicating with ioctl socket, received EOF\n");
+    pthread_sigmask(SIG_SETMASK, &sig_restore, NULL);
     exit(1);
 
 con_err:
     fprintf(stderr, "ERROR: libumockdev-preload: Error communicating with ioctl socket, errno: %d\n",
 	    errno);
+    pthread_sigmask(SIG_SETMASK, &sig_restore, NULL);
     exit(1);
 }
 
