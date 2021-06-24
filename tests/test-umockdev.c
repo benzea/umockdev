@@ -832,7 +832,7 @@ t_testbed_uevent_action_overflow(UMockdevTestbedFixture * fixture, gconstpointer
         umockdev_testbed_uevent(fixture->testbed, syspath, long_action);
         g_message("uevent send, should not be reached");
     }
-    g_test_trap_subprocess(NULL, 0, G_TEST_SUBPROCESS_INHERIT_STDOUT | G_TEST_SUBPROCESS_INHERIT_STDERR);
+    g_test_trap_subprocess(NULL, 10000000, G_TEST_SUBPROCESS_INHERIT_STDOUT | G_TEST_SUBPROCESS_INHERIT_STDERR);
     g_test_trap_assert_failed();
     g_test_trap_assert_stderr ("*uevent_sender_send*Property buffer overflow*");
 }
@@ -2147,6 +2147,13 @@ t_testbed_proc(UMockdevTestbedFixture * fixture, gconstpointer data)
     g_free(procdir);
 }
 
+static void
+sigalrm_handler(int blub)
+{
+    g_message("Got SIGALRM, killing myself with SIGBUS");
+    kill(getpid(), SIGBUS);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -2156,6 +2163,8 @@ main(int argc, char **argv)
 
     if (f != NULL && atoi(f) > 0)
             slow_testbed_factor = atoi(f);
+
+    signal(SIGALRM, sigalrm_handler);
 
 #if !defined(GLIB_VERSION_2_36)
     g_type_init();
