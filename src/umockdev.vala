@@ -746,6 +746,47 @@ public class Testbed: GLib.Object {
     }
 
     /**
+     * umockdev_testbed_attach_ioctl:
+     * @self: A #UMockdevTestbed.
+     * @dev: Device path (/dev/...) to attach to.
+     * @handler: a #UMockdevIoctlBase instance to handle requests
+     * @error: return location for a GError, or %NULL
+     *
+     * Attach an #UMockdevIoctlBase object to handle ioctl, read and write
+     * syscalls on the given device file. This allows emulating arbitrary
+     * ioctl's and read/write calls for which umockdev does not have builtin
+     * support.
+     *
+     * Returns: %TRUE on success, %FALSE on error.
+     */
+    public bool attach_ioctl (string? dev, IoctlBase handler) throws GLib.Error
+    {
+        string sockpath = Path.build_filename(this.root_dir, "ioctl", dev);
+        handler.register_path(dev, sockpath);
+
+        return true;
+    }
+
+    /**
+     * umockdev_testbed_detach_ioctl:
+     * @self: A #UMockdevTestbed.
+     * @dev: Device path (/dev/...) to detach.
+     * @handler: a #UMockdevIoctlBase instance to handle requests
+     * @error: return location for a GError, or %NULL
+     *
+     * Detach an #UMockdevIoctlBase object from an device node again. See
+     * umockdev_testbed_attach_ioctl().
+     *
+     * Returns: %TRUE on success, %FALSE on error.
+     */
+    public bool detach_ioctl (string? dev, IoctlBase handler) throws GLib.Error
+    {
+        handler.unregister_path(dev);
+
+        return true;
+    }
+
+    /**
      * umockdev_testbed_load_ioctl:
      * @self: A #UMockdevTestbed.
      * @dev: Device path (/dev/...) for which to load the ioctl record.
